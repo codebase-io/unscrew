@@ -1,0 +1,23 @@
+{
+    "name": "unscrew/unscrew",
+    "description": "Markdown-to-JSON headless CMS",
+    "type": "library",
+    "require": {
+        "league/commonmark": "^2.4",
+        "symfony/http-foundation": "^7.0",
+        "thecodingmachine/safe": "^2.5"
+    },
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Unscrew\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "adrian7",
+            "email": "adrian.silimon@yahoo.com"
+        }
+    ],
+    "minimum-stability": "stable"
+}
