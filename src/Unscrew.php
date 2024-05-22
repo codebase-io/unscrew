@@ -3,6 +3,12 @@
 namespace Unscrew;
 
 use InvalidArgumentException;
+use League\CommonMark\ConverterInterface;
+use League\CommonMark\Exception\CommonMarkException;
+use League\Config\Exception\ConfigurationExceptionInterface;
+use RuntimeException;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Throwable;
 use Unscrew\Parser\ParserInterface;
@@ -12,54 +18,126 @@ use Symfony\Component\HttpFoundation\Response;
 
 class Unscrew
 {
-    // TODO have a cache of resolved paths
-    private function __construct(private ParserInterface $parser) {}
+    const DEFAULT_HTML_TPL = <<<HTML
+        <html>
+            <head>
+                <title>{title}</title>
+                <style media="all">
+                    body{
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+                    }
+                    img { max-width: 100%; max-height: 100%; display: block; }
+                    article { width: 60vw; background: #eee8d5; padding: 24px; border-radius: 5px; }
+                </style>
+            </head>
+            <body>
+                <article>{content}</article>
+            </body>
+        </html>
+    HTML;
+
+    private function __construct(
+        private ParserInterface $parser,
+        private ?ConverterInterface $markdownConverter = NULL,
+        private string $htmlTemplate = self::DEFAULT_HTML_TPL,
+    ) {}
 
     public static function withParser( ParserInterface $parser): static
     {
         return new static($parser);
     }
 
+    public function setMarkdownHtmlConverter(ConverterInterface $converter): void
+    {
+        $this->markdownConverter = $converter;
+    }
+
+    public function setHtmlTemplate(string $template): void
+    {
+        $this->htmlTemplate= $template;
+    }
+
     /**
      * @throws FilesystemException
      */
-    private function getFilenameByPath(string $pathinfo): string
+    private function getFilenameByPath(string $pathinfo, ?string $ext): string
     {
+        $ext  = $ext ?? 'md';
+        $bpath= mb_substr($pathinfo, 0, mb_strrpos($pathinfo, '.'));
+
         $variants = [
-            "$pathinfo.md",
-            $pathinfo . DIRECTORY_SEPARATOR . "index.md",
-            $pathinfo . DIRECTORY_SEPARATOR . basename($pathinfo) . 'md',
+            $pathinfo,
+            "$bpath.md",
+            "{$pathinfo}.{$ext}",
+            $pathinfo . DIRECTORY_SEPARATOR . "index.{$ext}",
+            $pathinfo . DIRECTORY_SEPARATOR . basename($pathinfo) . ".$ext",
         ];
 
+        // TODO use new File
         foreach ($variants as $path) {
-            if (is_readable($path)) {
+            if (is_readable($path) && is_file($path)) {
                 return $path;
             }
         }
 
-        throw new InvalidArgumentException("File not found for path.");
+        throw new InvalidArgumentException("404 - File not found for path.");
     }
 
-    private function prepare(string $filename): Response
+    /**
+     * @throws ConfigurationExceptionInterface
+     * @throws CommonMarkException
+     */
+    private function prepare(string $filename, ?string $format): Response
     {
-        // TODO support caching
-        $data = $this->parser->parse($filename);
-        return new JsonResponse($data);
+        // Source file extension
+        $file = new File($filename);
+
+        if ('md' == $file->getExtension()) {
+            if (!$format || 'json' == $format) {
+                // MD -> JSON
+                $data = $this->parser->parse($filename);
+                return new JsonResponse($data);
+            }
+
+            if ('html' == $format) {
+                // MD -> HTML
+
+                if (!isset($this->markdownConverter)) {
+                    throw new RuntimeException("No markdown converter configured.");
+                }
+
+                $rndr = $this->markdownConverter->convert($file->getContent());
+                $html = str_replace('{title}', $file->getFilename(), $this->htmlTemplate);
+                $html = str_replace('{content}', $rndr->getContent(), $html);
+                return new Response($html);
+            }
+        }
+
+        // Serve other files as binary
+        // TODO support caching static resources
+        $resp = new BinaryFileResponse($file);
+        $resp->headers->set('Content-Type', $file->getMimeType());
+
+        return $resp;
+
     }
 
+    // TODO support Flysystem, indexing -> sqlite and search
     public function serve(string $folder): void
     {
         $folder = rtrim($folder, DIRECTORY_SEPARATOR);
         $request = Request::createFromGlobals();
-        $path    = ($folder. DIRECTORY_SEPARATOR . trim($request->getPathInfo(), '/'));
+        $rqpath  = $request->getPathInfo();
+        $path    = ($folder. DIRECTORY_SEPARATOR . trim($rqpath, '/'));
 
         if (!is_dir($folder) or !is_readable($folder)) {
             throw new InvalidArgumentException("Folder to serve should be a directory and should be readable.");
         }
 
         try {
-            $filename = $this->getFilenameByPath($path);
-            $response = $this->prepare($filename);
+            $ext      = str_contains($rqpath, '.') ? mb_substr($rqpath, mb_strripos($rqpath, '.')+1) : NULL;
+            $filename = $this->getFilenameByPath($path, $ext);
+            $response = $this->prepare($filename, $ext);
         }
         catch ( Throwable $exception) {
             // TODO better treatment of errors

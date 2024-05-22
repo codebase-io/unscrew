@@ -2,11 +2,11 @@
 
 namespace Unscrew\Parser;
 
-use DateTimeImmutable;
 use RuntimeException;
+use DateTimeImmutable;
 use InvalidArgumentException;
 use Safe\Exceptions\FilesystemException;
-use League\CommonMark\CommonMarkConverter;
+use League\CommonMark\ConverterInterface;
 use League\CommonMark\Exception\CommonMarkException;
 
 /**
@@ -25,7 +25,7 @@ class DefaultParser implements ParserInterface
         'publishDate',
     ];
 
-    public function __construct(private CommonMarkConverter $converter) {}
+    public function __construct(private ConverterInterface $converter) {}
 
     /**
      * @throws \Exception

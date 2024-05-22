@@ -1,0 +1,13 @@
+services:
+  unscrew:
+    image: php:apache-bookworm
+    container_name: unscrew
+    restart: always
+    ports:
+      - "1888:80"
+    volumes:
+      - ./:/var/www
+      - ./public/apache2.conf:/etc/apache2/sites-available/000-default.conf
+
+volumes:
+  db_data:

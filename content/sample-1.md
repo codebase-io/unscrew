@@ -1,7 +1,7 @@
 ---
 language: en
 intro_video: bunnynet://aee0f022-2ac2-405a-bdbb-54632c6f1eb5
-feature_image: ./library/heading-image-1.png
+feature_image: /samples/category/assets/pastel.png
 categories: php, sqlite, cms
 icon: <i class="fa fa-graduation-cap"></i>
 published: false
@@ -17,7 +17,7 @@ author: Adrian Silimon-Morariu <adrian.smr@codebase-io.io>
 
 [Intro Video](https://www.youtube.com/watch?v=xEZLL00S7gk)
 
-![Heading Image](https://fakeimg.pl/1920x1080/777/ffffff?text=Heading+Image)
+![Heading Image](samples/category/assets/pastel.png)
 
 #### __Description__
 
@@ -45,7 +45,7 @@ $response = new \Symfony\Component\HttpFoundation\Response();
 ```
 
 And images too
-![Heading Image](https://fakeimg.pl/1920x1080/777/ffffff?text=Heading+Image)
+![Heading Image](samples/category/assets/sunset.png)
 
 ### References (optional)
 
