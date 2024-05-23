@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use Safe\Exceptions\FilesystemException;
 use League\CommonMark\ConverterInterface;
 use League\CommonMark\Exception\CommonMarkException;
+use Symfony\Component\String\Slugger\SluggerInterface;
 
 /**
  * Implementation of a default parser;
@@ -25,7 +26,9 @@ class DefaultParser implements ParserInterface
         'publishDate',
     ];
 
-    public function __construct(private ConverterInterface $converter) {}
+    public function __construct(
+        private ConverterInterface $converter,
+    ) {}
 
     /**
      * @throws \Exception
@@ -90,8 +93,10 @@ class DefaultParser implements ParserInterface
             $name = mb_substr($line, 0, strpos($line, ']'));
             $link = trim(mb_substr($line, mb_strpos($line, '(')+1, mb_strripos($line, ')')-mb_strlen($line)));
 
-            // TODO camelize link name when not parse only
-            !$parseOnly && $dto->addData($name, $link);
+            if (!$parseOnly) {
+                $name = str_replace(' ', '-', mb_strtolower($name));
+                $dto->addData($name, $link);
+            }
         }
 
         return [$name ?? NULL, $link ?? NULL];
@@ -174,7 +179,7 @@ class DefaultParser implements ParserInterface
 
         if (3 == $headingLvl and !$dto->subHeadingTitleParsed) {
             $dto->subHeadingTitleParsed = !$dto->subHeadingTitleParsed;
-            $dto->addData('subheadingTitle', $heading);
+            $dto->addData('subHeadingTitle', $heading);
             return;
         }
 
@@ -263,10 +268,15 @@ class DefaultParser implements ParserInterface
      * @throws FilesystemException
      * @throws CommonMarkException
      */
-    public function parse( string $filename ): array
+    public function parse( string $filename, ?string $documentRoot=NULL, ?string $documentId=NULL ): array
     {
         $fp  = \Safe\fopen($filename, "r");
         $dto = new DefaultParserDto();
+
+        // Set document id
+        $dto->addData('_docID', $documentId ?? strtoupper(substr(md5($filename), 0, 24)));
+        // Set assets root
+        $dto->addData('_docRoot', $documentRoot);
 
         while (FALSE !== ($line = fgets($fp, self::MAX_LINE_LENGTH)) ) {
             $line = trim($line);

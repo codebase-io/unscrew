@@ -10,6 +10,7 @@ use RuntimeException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\String\Slugger\SluggerInterface;
 use Throwable;
 use Unscrew\Parser\ParserInterface;
 use Safe\Exceptions\FilesystemException;
@@ -18,20 +19,25 @@ use Symfony\Component\HttpFoundation\Response;
 
 class Unscrew
 {
+    // TODO link js libs locally
     const DEFAULT_HTML_TPL = <<<HTML
         <html>
             <head>
                 <title>{title}</title>
                 <style media="all">
                     body{
+                        background: #fdf6e3;
                         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
                     }
                     img { max-width: 100%; max-height: 100%; display: block; }
-                    article { width: 60vw; background: #eee8d5; padding: 24px; border-radius: 5px; }
+                    article { width: 71vw; background: #eee8d5; padding: 24px; border-radius: 3px; }
                 </style>
+                <link rel="stylesheet" href="https://unpkg.com/@highlightjs/cdn-assets@11.9.0/styles/default.min.css">
+                <script src="https://unpkg.com/@highlightjs/cdn-assets@11.9.0/highlight.min.js"></script>
             </head>
             <body>
                 <article>{content}</article>
+                <script>hljs.highlightAll();</script>
             </body>
         </html>
     HTML;
@@ -39,12 +45,18 @@ class Unscrew
     private function __construct(
         private ParserInterface $parser,
         private ?ConverterInterface $markdownConverter = NULL,
+        private ?DocumentIdGenerator $idGenerator = NULL,
         private string $htmlTemplate = self::DEFAULT_HTML_TPL,
     ) {}
 
     public static function withParser( ParserInterface $parser): static
     {
         return new static($parser);
+    }
+
+    public function setDocumentIdGenerator(DocumentIdGenerator $generator): void
+    {
+        $this->idGenerator = $generator;
     }
 
     public function setMarkdownHtmlConverter(ConverterInterface $converter): void
@@ -57,8 +69,15 @@ class Unscrew
         $this->htmlTemplate= $template;
     }
 
+    private function getDocumentRoot(Request $request, string $folder, string $filename): string
+    {
+        // TODO configurable asset root
+        $suffix = str_replace($folder, '', dirname($filename));
+        return $request->getSchemeAndHttpHost() . $suffix;
+    }
+
     /**
-     * @throws FilesystemException
+     * Given request path, resolves filename on filesystem
      */
     private function getFilenameByPath(string $pathinfo, ?string $ext): string
     {
@@ -87,7 +106,12 @@ class Unscrew
      * @throws ConfigurationExceptionInterface
      * @throws CommonMarkException
      */
-    private function prepare(string $filename, ?string $format): Response
+    private function prepare(
+        string $filename,
+        ?string $format=NULL,
+        ?string $docId=NULL,
+        ?string $docroot=NULL,
+    ): Response
     {
         // Source file extension
         $file = new File($filename);
@@ -95,7 +119,7 @@ class Unscrew
         if ('md' == $file->getExtension()) {
             if (!$format || 'json' == $format) {
                 // MD -> JSON
-                $data = $this->parser->parse($filename);
+                $data = $this->parser->parse($filename, $docroot, $docId);
                 return new JsonResponse($data);
             }
 
@@ -137,7 +161,12 @@ class Unscrew
         try {
             $ext      = str_contains($rqpath, '.') ? mb_substr($rqpath, mb_strripos($rqpath, '.')+1) : NULL;
             $filename = $this->getFilenameByPath($path, $ext);
-            $response = $this->prepare($filename, $ext);
+            $response = $this->prepare(
+                $filename,
+                $ext,
+                $this->idGenerator?->generate($request, $filename, $folder),
+                $this->getDocumentRoot($request, $folder, $filename),
+            );
         }
         catch ( Throwable $exception) {
             // TODO better treatment of errors
