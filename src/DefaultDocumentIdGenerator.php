@@ -4,7 +4,6 @@ namespace Unscrew;
 
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\String\Slugger\SluggerInterface;
-use Unscrew\DocumentIdGenerator;
 
 class DefaultDocumentIdGenerator implements DocumentIdGenerator
 {

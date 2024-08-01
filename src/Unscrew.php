@@ -114,13 +114,17 @@ class Unscrew
     ): Response
     {
         // Source file extension
-        $file = new File($filename);
+        $file    = new File($filename);
+        $headers = [
+            'X-Document-Id'  => $docId,
+            'X-Document-Root'=> $docroot,
+        ];
 
         if ('md' == $file->getExtension()) {
             if (!$format || 'json' == $format) {
                 // MD -> JSON
                 $data = $this->parser->parse($filename, $docroot, $docId);
-                return new JsonResponse($data);
+                return new JsonResponse($data, 200, $headers);
             }
 
             if ('html' == $format) {
@@ -133,13 +137,13 @@ class Unscrew
                 $rndr = $this->markdownConverter->convert($file->getContent());
                 $html = str_replace('{title}', $file->getFilename(), $this->htmlTemplate);
                 $html = str_replace('{content}', $rndr->getContent(), $html);
-                return new Response($html);
+                return new Response($html, 200, $headers);
             }
         }
 
         // Serve other files as binary
         // TODO support caching static resources
-        $resp = new BinaryFileResponse($file);
+        $resp = new BinaryFileResponse($file, 200, $headers);
         $resp->headers->set('Content-Type', $file->getMimeType());
 
         return $resp;
