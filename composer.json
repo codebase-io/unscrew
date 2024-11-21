@@ -4,12 +4,13 @@
     "type": "library",
     "require": {
         "php": "~8.1",
-        "symfony/mime": "^7.0",
+        "symfony/mime": "^7.1",
         "league/commonmark": "^2.4",
         "thecodingmachine/safe": "^2.5",
         "symfony/http-foundation": "^7.0",
         "symfony/string": "^7.0",
-        "symfony/translation-contracts": "^3.5"
+        "symfony/translation-contracts": "^3.5",
+        "league/flysystem": "^3.0"
     },
     "license": "MIT",
     "autoload": {

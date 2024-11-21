@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+use League\Flysystem\Filesystem;
 use Unscrew\Unscrew;
 use Unscrew\Parser\DefaultParser;
 use Unscrew\DefaultDocumentIdGenerator;
@@ -35,6 +36,9 @@ $unscrew->setDocumentIdGenerator($idGenerator);
 // /example -> example.md | /example/index.md | /example/example.md
 // TODO throw when multiple paths are found for the same route
 
+// Create adapter for file system we want to serve
+$adapter = new \League\Flysystem\Local\LocalFilesystemAdapter(__DIR__ . '/../storage');
+$fs      = new Filesystem($adapter);
+
 // Serve
-// TODO support flysystem instead of folder
-$unscrew->serve(__DIR__ . '/../storage');
+$unscrew->serve($fs);

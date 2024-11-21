@@ -9,8 +9,8 @@ class DefaultDocumentIdGenerator implements DocumentIdGenerator
 {
 
     public function __construct(
-        private SluggerInterface $slugger,
-        private string $prefix='',
+        private readonly SluggerInterface $slugger,
+        private readonly string $prefix='',
     ) {}
 
     public function generate( Request $request, string $filename, string $folder ): ?string
