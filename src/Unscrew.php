@@ -9,6 +9,7 @@ use League\Config\Exception\ConfigurationExceptionInterface;
 use League\Flysystem\Filesystem;
 use League\Flysystem\FilesystemAdapter;
 use League\Flysystem\FilesystemException;
+use League\Flysystem\FilesystemOperator;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\File;
@@ -47,16 +48,30 @@ class Unscrew
         </html>
     HTML;
 
+    const FORMAT_JSON = 'json';
+    const FORMAT_HTML = 'html';
+
     private function __construct(
         private readonly ParserInterface $parser,
+        private string $defaultFormat = self::FORMAT_JSON,
         private ?ConverterInterface $markdownConverter = NULL,
         private ?DocumentIdGenerator $idGenerator = NULL,
+        // TODO support configure html template
         private string $htmlTemplate = self::DEFAULT_HTML_TPL,
     ) {}
 
-    public static function withParser( ParserInterface $parser): static
+    public static function withParser(ParserInterface $parser): static
     {
         return new static($parser);
+    }
+
+    public function setDefaultFormat(string $format): void
+    {
+        if (!in_array($format, ['md', 'html', 'json'])) {
+            throw new InvalidArgumentException(sprintf("Format %s not supported as default.", $format));
+        }
+
+        $this->defaultFormat = $format;
     }
 
     public function setDocumentIdGenerator(DocumentIdGenerator $generator): void
@@ -81,7 +96,7 @@ class Unscrew
         return $request->getSchemeAndHttpHost() . $suffix;
     }
 
-    private function fileIsMarkdown(string $mime): bool
+    private function fileIsMarkdown(string $mime, bool $break=FALSE): bool
     {
         $mime= strtolower($mime);
 
@@ -89,17 +104,25 @@ class Unscrew
             return TRUE;
         }
 
+        if ($break) {
+            return FALSE;
+        }
+
         $mimeTypes = new MimeTypes(); // TODO singleton
         $extensions= join('/', $mimeTypes->getExtensions($mime));
 
-        return $this->fileIsMarkdown($extensions);
+        return $this->fileIsMarkdown($extensions, TRUE);
     }
 
     /**
      * Given request path, resolves filename on filesystem
      * @throws FilesystemException
      */
-    private function getFilenameByPath(Filesystem $filesystem, string $pathinfo, ?string $ext): string
+    private function getFilenameByPath(
+        FilesystemOperator $filesystem,
+        string $pathinfo,
+        ?string $ext
+    ): string
     {
         $ext  = $ext ?? 'md';
         $bpath= mb_substr($pathinfo, 0, mb_strrpos($pathinfo, '.'));
@@ -123,34 +146,41 @@ class Unscrew
         throw new InvalidArgumentException(sprintf("404 - File not found for path %s.", $pathinfo));
     }
 
+    private function prepareMarkdownToJSON() {
+
+    }
+
     /**
      * @throws ConfigurationExceptionInterface
      * @throws CommonMarkException
      * @throws FilesystemException
      */
     private function prepare(
-        Filesystem $filesystem,
+        FilesystemOperator $filesystem,
         string $filename,
-        ?string $format=NULL,
+        ?string $format=self::FORMAT_JSON,
         ?string $docId=NULL,
         ?string $docroot=NULL,
     ): Response
     {
         $headers = [
-            'X-Document-Id'  => $docId,
-            'X-Document-Root'=> $docroot,
+            'X-Document-Id'     => $docId,
+            'X-Document-Root'   => $docroot,
+            'X-Document-Format' => $format,
         ];
 
-        $mime = $filesystem->mimeType($filename);
+        $mime   = $filesystem->mimeType($filename);
+        // (!) TODO we need to close the stream each time
 
         if ($this->fileIsMarkdown($mime)) {
-            if (!$format || 'json' == $format) {
-                // Markdown -> JSON
-                $data = $this->parser->parse($filesystem->readStream($filename), $docroot, $docId);
+            if (!$format || self::FORMAT_JSON == $format) {
+                // Markdown -> JSON (default)
+                $stream = $filesystem->readStream($filename);
+                $data   = $this->parser->parse($stream, $docroot, $docId);
                 return new JsonResponse($data, 200, $headers);
             }
 
-            if ('html' == $format) {
+            if (self::FORMAT_HTML == $format) {
                 // Markdown -> HTML
 
                 if (!isset($this->markdownConverter)) {
@@ -166,8 +196,9 @@ class Unscrew
 
         // Serve other files as binary
         // TODO support caching static resources
-        $resp = new StreamedResponse(
-            fn() => fpassthru($filesystem->readStream($filename)),
+        $stream = $filesystem->readStream($filename);
+        $resp   = new StreamedResponse(
+            fn() => fpassthru($stream),
             200,
             $headers,
         );
@@ -182,10 +213,8 @@ class Unscrew
     /**
      * @throws FilesystemException
      */
-    public function serve(Filesystem $filesystem): void
+    public function serve(FilesystemOperator $filesystem, Request $request): void
     {
-
-        $request = Request::createFromGlobals();
         $rqpath  = $request->getPathInfo();
         $path    = (DIRECTORY_SEPARATOR . trim($rqpath, '/'));
 
@@ -201,14 +230,15 @@ class Unscrew
             $response = $this->prepare(
                 $filesystem,
                 $filename,
-                $ext,
-                //$this->idGenerator?->generate($request, $filename, $folder),
-                //$this->getDocumentRoot($request, $folder, $filename),
+                $ext ?? $this->defaultFormat,
+                $this->idGenerator?->generate($request, $filename),
+                $this->getDocumentRoot($request, dirname($filename), $filename),
             );
         }
         catch ( Throwable $exception) {
+            // TODO trace may be an array
 //            echo '<pre>';
-//            print_r($exception->getTrace());
+//            print_r($exception->getTrace()); die();
 //            die(join("\n", $exception->getTrace())); // TODO...
             // TODO better treatment of errors
             $response = new JsonResponse([

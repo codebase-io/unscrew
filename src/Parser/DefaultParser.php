@@ -6,11 +6,9 @@ use Exception;
 use RuntimeException;
 use DateTimeImmutable;
 use InvalidArgumentException;
-use Safe\Exceptions\FilesystemException;
 use League\CommonMark\ConverterInterface;
 use League\CommonMark\Exception\CommonMarkException;
 use League\Config\Exception\ConfigurationExceptionInterface;
-use Safe\Exceptions\StreamException;
 
 /**
  * Implementation of a default parser;
@@ -274,8 +272,6 @@ class DefaultParser implements ParserInterface
      * @return array
      * @throws CommonMarkException
      * @throws ConfigurationExceptionInterface
-     * @throws FilesystemException
-     * @throws StreamException
      * @throws Exception
      */
     public function parse(
@@ -292,7 +288,7 @@ class DefaultParser implements ParserInterface
         $documentRoot && $dto->addData('_docRoot', $documentRoot);
 
         // Read and process each line from stream
-        while ( FALSE != ($line = \Safe\stream_get_line($stream, self::MAX_LINE_LENGTH, "\n")) ) {
+        while ( FALSE != ($line = fgets($stream, self::MAX_LINE_LENGTH)) ) {
             $line = trim($line);
             $dto->lineNumber++;
 
@@ -330,10 +326,7 @@ class DefaultParser implements ParserInterface
 
         }
 
-        // Close stream
-        // TODO
-
-        if (!$dto->lastLine) {
+        if (!isset($dto->lastLine) || !$dto->lastLine) {
             // Last line is mandatory
             throw new RuntimeException("File does not have a last line. Add `[//]: # (end)` to indicate the last line of the document.");
         }

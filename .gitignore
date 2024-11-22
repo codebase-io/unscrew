@@ -1,5 +1,6 @@
 .idea
 vendor
+config.php
 
 ###> phpunit/phpunit ###
 /phpunit.xml

@@ -10,7 +10,8 @@
         "symfony/http-foundation": "^7.0",
         "symfony/string": "^7.0",
         "symfony/translation-contracts": "^3.5",
-        "league/flysystem": "^3.0"
+        "league/flysystem": "^3.0",
+        "symfony/yaml": "^7.1"
     },
     "license": "MIT",
     "autoload": {
