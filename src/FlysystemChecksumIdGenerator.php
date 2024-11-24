@@ -12,7 +12,8 @@ class FlysystemChecksumIdGenerator implements DocumentIdGenerator
         private readonly array $config = [],
     ) {}
 
-    public function generate( Request $request, string $filename ): ?string {
+    public function generate( Request $request, string $filename ): ?string
+    {
         try {
             return $this->filesystem->checksum($filename, $this->config);
         }

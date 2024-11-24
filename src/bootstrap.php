@@ -1,10 +1,11 @@
 <?php
 
+use Unscrew\Config;
 use Unscrew\Unscrew;
 
 require_once __DIR__ . '/../vendor/autoload.php';
-$config = require_once __DIR__ . '/../config.dist.php';
-$config = \Unscrew\Config::fromArray($config);
+$config = require_once __DIR__ . '/../config.php';
+$config = Config::fromArray($config);
 
 // Setup CMS with parser
 $unscrew = Unscrew::withParser($config->getParserToJson());

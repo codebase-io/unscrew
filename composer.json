@@ -19,6 +19,11 @@
             "Unscrew\\": "src/"
         }
     },
+    "scripts": {
+        "post-create-project-cmd": [
+            "php -r \"copy('config.dist.php', 'config.php');\""
+        ]
+    },
     "authors": [
         {
             "name": "adrian7",
