@@ -2,36 +2,39 @@
 
 namespace Unscrew\Parser;
 
+use Exception;
 use RuntimeException;
 use DateTimeImmutable;
 use InvalidArgumentException;
-use Safe\Exceptions\FilesystemException;
 use League\CommonMark\ConverterInterface;
 use League\CommonMark\Exception\CommonMarkException;
-use Symfony\Component\String\Slugger\SluggerInterface;
+use League\Config\Exception\ConfigurationExceptionInterface;
 
 /**
  * Implementation of a default parser;
- * See ../../content folder for samples
+ * See ../../storage folder for samples
  */
 class DefaultParser implements ParserInterface
 {
+    // Maximum line length to parse; longer lines will be trimmed.
     const MAX_LINE_LENGTH = 10240;
 
+    // Fields from front matter to convert to JSON bool
     private array $mapToBoolean = [
         'published',
     ];
 
+    // Fields from front matter to convert to JSON date
     private array $mapToDate = [
         'publishDate',
     ];
 
     public function __construct(
-        private ConverterInterface $converter,
+        private readonly ConverterInterface $converter,
     ) {}
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     private function parseMetaLine(string $line, DefaultParserDto $dto): void
     {
@@ -103,7 +106,7 @@ class DefaultParser implements ParserInterface
     }
 
     /**
-     * @throws CommonMarkException
+     * @throws CommonMarkException|ConfigurationExceptionInterface
      */
     private function endSection(DefaultParserDto $dto): void
     {
@@ -187,7 +190,7 @@ class DefaultParser implements ParserInterface
     }
 
     /**
-     * @throws CommonMarkException
+     * @throws CommonMarkException|ConfigurationExceptionInterface
      */
     private function parseSectionLine(string $line, DefaultParserDto $dto): void
     {
@@ -244,7 +247,7 @@ class DefaultParser implements ParserInterface
     }
 
     /**
-     * @throws CommonMarkException
+     * @throws CommonMarkException|ConfigurationExceptionInterface
      */
     private function parseLastLine(string $line, DefaultParserDto $dto): void
     {
@@ -262,23 +265,30 @@ class DefaultParser implements ParserInterface
     /**
      * Parse markdown file to json
      *
-     * @param string $filename
+     * @param resource $stream
+     * @param string|null $documentRoot
+     * @param string|null $documentId
      *
      * @return array
-     * @throws FilesystemException
      * @throws CommonMarkException
+     * @throws ConfigurationExceptionInterface
+     * @throws Exception
      */
-    public function parse( string $filename, ?string $documentRoot=NULL, ?string $documentId=NULL ): array
+    public function parse(
+        $stream,
+        ?string $documentRoot=NULL,
+        ?string $documentId=NULL
+    ): array
     {
-        $fp  = \Safe\fopen($filename, "r");
         $dto = new DefaultParserDto();
 
         // Set document id
-        $dto->addData('_docID', $documentId ?? strtoupper(substr(md5($filename), 0, 24)));
+        $documentId && $dto->addData('_docID', $documentId);
         // Set assets root
-        $dto->addData('_docRoot', $documentRoot);
+        $documentRoot && $dto->addData('_docRoot', $documentRoot);
 
-        while (FALSE !== ($line = fgets($fp, self::MAX_LINE_LENGTH)) ) {
+        // Read and process each line from stream
+        while ( FALSE != ($line = fgets($stream, self::MAX_LINE_LENGTH)) ) {
             $line = trim($line);
             $dto->lineNumber++;
 
@@ -316,12 +326,9 @@ class DefaultParser implements ParserInterface
 
         }
 
-        // Close stream
-        \Safe\fclose($fp);
-
-        if (!$dto->lastLine) {
+        if (!isset($dto->lastLine) || !$dto->lastLine) {
             // Last line is mandatory
-            throw new RuntimeException("{$filename} does not have a last line. Add `[//]: # (end)` to indicate the last line of the document.");
+            throw new RuntimeException("File does not have a last line. Add `[//]: # (end)` to indicate the last line of the document.");
         }
 
         return $dto->jsonSerialize();

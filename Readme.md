@@ -2,11 +2,11 @@
 
 *Markdown-to-JSON headless CMS*
 
-Built atop symfony/http and league/commonmark and league/flysystem, Unscrew 
+Built atop symfony/http, league/commonmark and league/flysystem, Unscrew 
 is your bare-bones JSON API in front of your .md files.
 
 ## Reasons
-*The best reason probably* is that you can organize the content any way you like, and store it independently of
+**The best reason** probably is that you can organize the content any way you like, and store it independently of
 the publishing platform.
 
 Our team agrees - it's easier to manage, store and edit content in Markdown. It's a simple format
@@ -18,7 +18,7 @@ Our projects using this approach, don't have an admin dashboard at all.
 
 ## Parsing
 
-Parsing markdown it usually done to HTML. However when it comes to JSON there's a much higher coupling 
+Parsing markdown it usually done to HTML. However, when it comes to JSON there's a much higher coupling 
 with the code consuming it. So don't settle for the default collection of parsers, and don't hesitate 
 to implement your own.
 
