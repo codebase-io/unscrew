@@ -221,8 +221,12 @@ class DefaultParser implements ParserInterface
                 $dto->pageName = $pgName;
                 return;
             }
-            // TODO refactor to Dto
-            isset($dto->pageName) && @$dto->pageContent[$dto->pageName].= "\n{$line}";
+
+            // Append lines
+            if (isset($dto->pageName)) {
+                $dto->pageContent[$dto->pageName] = $dto->pageContent[$dto->pageName] ?? '';
+                $dto->pageContent[$dto->pageName].= "\n{$line}";
+            }
         }
 
         // Lessons / Sessions
