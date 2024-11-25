@@ -190,6 +190,8 @@ class Unscrew
                 $rndr = $this->markdownConverter->convert($filesystem->read($filename));
                 $html = str_replace('{title}', basename($filename), $this->htmlTemplate);
                 $html = str_replace('{content}', $rndr->getContent(), $html);
+                $headers['Content-Type'] = 'text/html';
+
                 return new Response($html, 200, $headers);
             }
         }
@@ -213,7 +215,7 @@ class Unscrew
     /**
      * @throws FilesystemException
      */
-    public function serve(FilesystemOperator $filesystem, Request $request): void
+    protected function process(FilesystemOperator $filesystem, Request $request): Response
     {
         $rqpath  = $request->getPathInfo();
         $path    = (DIRECTORY_SEPARATOR . trim($rqpath, '/'));
@@ -249,6 +251,15 @@ class Unscrew
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
-        $response->send();
+        return $response;
+    }
+
+    /**
+     * @throws FilesystemException
+     * @codeCoverageIgnore
+     */
+    public function serve(FilesystemOperator $filesystem, Request $request): void
+    {
+        $this->process($filesystem, $request)->send();
     }
 }

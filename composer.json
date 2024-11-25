@@ -16,7 +16,8 @@
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "Unscrew\\": "src/"
+            "Unscrew\\": "src/",
+            "Tests\\": "tests/"
         }
     },
     "scripts": {
@@ -30,5 +31,14 @@
             "email": "adrian.silimon@yahoo.com"
         }
     ],
-    "minimum-stability": "stable"
+    "minimum-stability": "stable",
+    "require-dev": {
+        "pestphp/pest": "^3.5",
+        "league/flysystem-memory": "^3.0"
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    }
 }

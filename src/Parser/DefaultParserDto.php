@@ -3,8 +3,9 @@
 namespace Unscrew\Parser;
 
 use JsonSerializable;
-use League\CommonMark\CommonMarkConverter;
+use League\CommonMark\ConverterInterface;
 use League\CommonMark\Exception\CommonMarkException;
+use League\Config\Exception\ConfigurationExceptionInterface;
 
 class DefaultParserDto implements JsonSerializable
 {
@@ -38,9 +39,9 @@ class DefaultParserDto implements JsonSerializable
     }
 
     /**
-     * @throws CommonMarkException
+     * @throws CommonMarkException|ConfigurationExceptionInterface
      */
-    public function flushBufferTo(string $section, CommonMarkConverter $converter): void
+    public function flushBufferTo(string $section, ConverterInterface $converter): void
     {
         if (empty($this->buffer)) {
             return ;
