@@ -3,8 +3,8 @@
 use Unscrew\Config;
 use Unscrew\Unscrew;
 
-require_once __DIR__ . '/../vendor/autoload.php';
-$config = require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/vendor/autoload.php';
+$config = require_once __DIR__ . '/config.php';
 $config = Config::fromArray($config);
 
 // Setup CMS with parser
