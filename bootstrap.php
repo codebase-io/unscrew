@@ -1,4 +1,4 @@
-<?php
+<?php /** @noinspection ALL */
 
 use Unscrew\Config;
 use Unscrew\Unscrew;
