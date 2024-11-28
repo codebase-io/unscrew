@@ -1,6 +1,7 @@
 .idea
 vendor
 config.php
+composer.lock
 
 ###> phpunit/phpunit ###
 /phpunit.xml

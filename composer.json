@@ -4,14 +4,14 @@
     "type": "library",
     "require": {
         "php": "~8.1",
-        "symfony/mime": "^7.1",
+        "symfony/mime": "^6.4|^7.1",
         "league/commonmark": "^2.4",
         "thecodingmachine/safe": "^2.5",
-        "symfony/http-foundation": "^7.0",
-        "symfony/string": "^7.0",
+        "symfony/http-foundation": "^6.4|^7.1",
+        "symfony/string": "^6.4|^7.1",
         "symfony/translation-contracts": "^3.5",
         "league/flysystem": "^3.0",
-        "symfony/yaml": "^7.1"
+        "symfony/yaml": "^6.4|^7.1"
     },
     "license": "MIT",
     "autoload": {
