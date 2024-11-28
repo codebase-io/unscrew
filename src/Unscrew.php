@@ -21,11 +21,8 @@ use Unscrew\Parser\ParserInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-// TODO support json schema, per document
-
 class Unscrew
 {
-    // TODO link js libs locally
     const DEFAULT_HTML_TPL = <<<HTML
         <html>
             <head>
@@ -51,14 +48,18 @@ class Unscrew
     const FORMAT_JSON = 'json';
     const FORMAT_HTML = 'html';
 
+    private MimeTypes $mimeTypes;
+
     private function __construct(
         private readonly ParserInterface $parser,
         private string $defaultFormat = self::FORMAT_JSON,
         private ?ConverterInterface $markdownConverter = NULL,
         private ?DocumentIdGenerator $idGenerator = NULL,
-        // TODO support configure html template
+        // TODO support custom html template
         private string $htmlTemplate = self::DEFAULT_HTML_TPL,
-    ) {}
+    ) {
+        $this->mimeTypes = new MimeTypes();
+    }
 
     public static function withParser(ParserInterface $parser): static
     {
@@ -68,6 +69,7 @@ class Unscrew
     public function setDefaultFormat(string $format): void
     {
         if (!in_array($format, ['md', 'html', 'json'])) {
+            // TODO is MD really supported as default?
             throw new InvalidArgumentException(sprintf("Format %s not supported as default.", $format));
         }
 
@@ -91,7 +93,6 @@ class Unscrew
 
     private function getDocumentRoot(Request $request, string $folder, string $filename): string
     {
-        // TODO configurable asset root
         $suffix = str_replace($folder, '', dirname($filename));
         return $request->getSchemeAndHttpHost() . $suffix;
     }
@@ -108,8 +109,7 @@ class Unscrew
             return FALSE;
         }
 
-        $mimeTypes = new MimeTypes(); // TODO singleton
-        $extensions= join('/', $mimeTypes->getExtensions($mime));
+        $extensions= join('/', $this->mimeTypes->getExtensions($mime));
 
         return $this->fileIsMarkdown($extensions, TRUE);
     }
@@ -124,8 +124,10 @@ class Unscrew
         ?string $ext
     ): string
     {
-        $ext  = $ext ?? 'md';
-        $bpath= mb_substr($pathinfo, 0, mb_strrpos($pathinfo, '.'));
+        $ext  = $ext ?? 'md'; // TODO Markdown files may come with different extensions
+
+        $pathinfo = $pathinfo === DIRECTORY_SEPARATOR ? "" : $pathinfo;
+        $bpath    = mb_substr($pathinfo, 0, mb_strrpos($pathinfo, '.'));
 
         $variants = [
             $pathinfo,
@@ -135,6 +137,7 @@ class Unscrew
             $pathinfo . DIRECTORY_SEPARATOR . basename($pathinfo) . ".$ext",
         ];
 
+        $variants = array_filter($variants);
         $variants = array_filter($variants, fn($var) => ".{$ext}" !== trim($var, '/') );
 
         foreach ($variants as $path) {
@@ -146,8 +149,28 @@ class Unscrew
         throw new InvalidArgumentException(sprintf("404 - File not found for path %s.", $pathinfo));
     }
 
-    private function prepareMarkdownToJSON() {
+    private function respondWithError(
+        array $info,
+        string $format=self::FORMAT_JSON,
+        int $status=400,
+    ): Response
+    {
+        if (self::FORMAT_JSON === $format) {
+            return new JsonResponse($info, $status);
+        }
 
+        $title = sprintf("<title>%s</title>", $info['error'] ?? "Unknown error");
+        $body = sprintf(
+            <<<HTML
+                <body style='text-align: center; font-family: monospace;'>
+                    <h1>404</h1>
+                    <p>Could not find a Markdown document matching path `%s`.</p>
+                </body>
+            HTML,
+                $info['path'] ?? "",
+        );
+
+        return new Response("<html lang='en'>{$title} {$body}</html>", $status);
     }
 
     /**
@@ -170,7 +193,6 @@ class Unscrew
         ];
 
         $mime   = $filesystem->mimeType($filename);
-        // (!) TODO we need to close the stream each time
 
         if ($this->fileIsMarkdown($mime)) {
             if (!$format || self::FORMAT_JSON == $format) {
@@ -197,7 +219,6 @@ class Unscrew
         }
 
         // Serve other files as binary
-        // TODO support caching static resources
         $stream = $filesystem->readStream($filename);
         $resp   = new StreamedResponse(
             fn() => fpassthru($stream),
@@ -210,48 +231,44 @@ class Unscrew
 
     }
 
-    // TODO support Flysystem, indexing -> sqlite and search
-
     /**
      * @throws FilesystemException
      */
     protected function process(FilesystemOperator $filesystem, Request $request): Response
     {
-        $rqpath  = $request->getPathInfo();
-        $path    = (DIRECTORY_SEPARATOR . trim($rqpath, '/'));
+        $rqpath = $request->getPathInfo();
+        $path   = (DIRECTORY_SEPARATOR . trim($rqpath, '/'));
+
+        $ext    = str_contains($rqpath, '.') ? mb_substr($rqpath, mb_strripos($rqpath, '.')+1) : NULL;
+        $format = $ext ?? $this->defaultFormat;
 
         if (!$filesystem->directoryExists('/')) {
             throw new InvalidArgumentException("Path to serve should be a directory and should be readable.");
         }
 
-
         try {
-            $ext      = str_contains($rqpath, '.') ? mb_substr($rqpath, mb_strripos($rqpath, '.')+1) : NULL;
             $filename = $this->getFilenameByPath($filesystem, $path, $ext);
 
-            $response = $this->prepare(
+            return $this->prepare(
                 $filesystem,
                 $filename,
-                $ext ?? $this->defaultFormat,
+                $format,
                 $this->idGenerator?->generate($request, $filename),
                 $this->getDocumentRoot($request, dirname($filename), $filename),
             );
         }
+        catch (InvalidArgumentException $exception) {
+            $status = Response::HTTP_NOT_FOUND;
+        }
         catch ( Throwable $exception) {
-            // TODO trace may be an array
-//            echo '<pre>';
-//            print_r($exception->getTrace()); die();
-//            die(join("\n", $exception->getTrace())); // TODO...
-            // TODO better treatment of errors
-            $response = new JsonResponse([
-                'document'=> $filename ?? NULL,
-                'path'    => $request->getPathInfo(),
-                'error'   => $exception->getMessage(),
-                //'trace'   => $exception->getTrace(),
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+            $status = Response::HTTP_INTERNAL_SERVER_ERROR;
         }
 
-        return $response;
+        return $this->respondWithError([
+            'document'=> $filename ?? NULL,
+            'path'    => $request->getPathInfo(),
+            'error'   => $exception?->getMessage(),
+        ], $format, $status);
     }
 
     /**
