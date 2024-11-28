@@ -12,6 +12,7 @@
   - [ ] Allow custom default HTML template
   - [ ] Add `x-document-path` to headers to identify the served md file
   - [ ] Make `parserToJson` optional
+  - [ ] `parserToHtml` should also be one ParserInterface
 
 ### Ideas
 *Should we support parserTo<format> configuration to enable more formats?*
