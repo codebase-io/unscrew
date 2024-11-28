@@ -21,9 +21,9 @@ class Config
         return new self(
             $config['filesystem'],
             $config['parserToJson'],
-            $config['parserToHtml'],
-            $config['documentIdGenerator'],
-            $config['defaultFormat'],
+            $config['parserToHtml'] ?? NULL,
+            $config['documentIdGenerator'] ?? NULL,
+            $config['defaultFormat'] ?? Unscrew::FORMAT_JSON,
         );
     }
 

@@ -92,7 +92,6 @@ class DefaultParser implements ParserInterface
                 $line = mb_substr($line, mb_strpos($line, '[')+1);
             }
 
-            // TODO use symfony string utils instead ob mb_ functions
             $name = mb_substr($line, 0, strpos($line, ']'));
             $link = trim(mb_substr($line, mb_strpos($line, '(')+1, mb_strripos($line, ')')-mb_strlen($line)));
 
@@ -117,7 +116,6 @@ class DefaultParser implements ParserInterface
 
         // Check of pages content
         if (isset($dto->pageName) && isset($dto->pageContent[$dto->pageName])) {
-            // TODO duplicate code
             $content                          = $dto->pageContent[$dto->pageName] ?? NULL;
             $dto->pageContent[$dto->pageName] = $content ? $this->converter->convert($content)->getContent() : NULL;
             $dto->addData('pages', $dto->pageContent);
@@ -136,7 +134,7 @@ class DefaultParser implements ParserInterface
     }
 
     /**
-     * @throws CommonMarkException
+     * @throws CommonMarkException|ConfigurationExceptionInterface
      */
     private function parseHeadingLine(string $line, DefaultParserDto $dto): void
     {
@@ -242,7 +240,7 @@ class DefaultParser implements ParserInterface
                 $dto->chapterName = $chptrName;
                 return;
             }
-            // TODO refactor to Dto
+
             if ($dto->chapterName){
                 list($title, $link) = $this->parseLink($line, $dto, TRUE);
                 mb_strlen($title) && $dto->chaptersContent[$dto->chapterName][$title] = $link;

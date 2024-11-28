@@ -1,4 +1,4 @@
-<?php
+<?php /** @noinspection ALL */
 
 use Unscrew\Config;
 use Unscrew\Unscrew;
@@ -10,11 +10,11 @@ $config = Config::fromArray($config);
 // Setup CMS with parser
 $unscrew = Unscrew::withParser($config->getParserToJson());
 
-if ($defaultFormat = $config->getDefaultFormat())
-    $unscrew->setDefaultFormat($defaultFormat);
-
 if ($htmlParser = $config->getParserToHtml())
     $unscrew->setMarkdownHtmlConverter($config->getParserToHtml());
+
+if ($defaultFormat = $config->getDefaultFormat())
+    $unscrew->setDefaultFormat($defaultFormat);
 
 if ($docIdGenerator = $config->getDocumentIdGenerator())
     $unscrew->setDocumentIdGenerator($docIdGenerator);

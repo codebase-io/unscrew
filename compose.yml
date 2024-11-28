@@ -8,6 +8,3 @@ services:
     volumes:
       - ./:/var/www
       - ./public/apache2.conf:/etc/apache2/sites-available/000-default.conf
-
-volumes:
-  db_data:
