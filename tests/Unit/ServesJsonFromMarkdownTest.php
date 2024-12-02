@@ -27,7 +27,7 @@ test('serve json from markdown', function () {
         ->and( $json['_docID'] )
         ->toBe( 'test-md' )
         ->and( $json['_docRoot'] )
-        ->toBe( 'http://unscrew.cms' )
+        ->toBe( '/' )
         ->and( $json['title'] )
         ->toBe( 'Unscrew in-memory test file' )
         ->and( $json['description'] )
