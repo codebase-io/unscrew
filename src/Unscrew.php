@@ -11,8 +11,6 @@ use League\Flysystem\FilesystemAdapter;
 use League\Flysystem\FilesystemException;
 use League\Flysystem\FilesystemOperator;
 use RuntimeException;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
-use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\Mime\MimeTypes;
@@ -49,6 +47,10 @@ class Unscrew
     const FORMAT_HTML = 'html';
 
     private MimeTypes $mimeTypes;
+
+    use RegisterParser;
+    use ParseDocument;
+    use ServeStatic;
 
     private function __construct(
         private readonly ParserInterface $parser,
@@ -91,12 +93,6 @@ class Unscrew
         $this->htmlTemplate= $template;
     }
 
-    private function getDocumentRoot(Request $request, string $folder, string $filename): string
-    {
-        $suffix = str_replace($folder, '', dirname($filename));
-        return $request->getSchemeAndHttpHost() . $suffix;
-    }
-
     private function fileIsMarkdown(string $mime, bool $break=FALSE): bool
     {
         $mime= strtolower($mime);
@@ -134,7 +130,6 @@ class Unscrew
             "$bpath.md",
             "{$pathinfo}.{$ext}",
             $pathinfo . DIRECTORY_SEPARATOR . "index.{$ext}",
-            $pathinfo . DIRECTORY_SEPARATOR . basename($pathinfo) . ".$ext",
         ];
 
         $variants = array_filter($variants);
@@ -174,64 +169,6 @@ class Unscrew
     }
 
     /**
-     * @throws ConfigurationExceptionInterface
-     * @throws CommonMarkException
-     * @throws FilesystemException
-     */
-    private function prepare(
-        FilesystemOperator $filesystem,
-        string $filename,
-        ?string $format=self::FORMAT_JSON,
-        ?string $docId=NULL,
-        ?string $docroot=NULL,
-    ): Response
-    {
-        $headers = [
-            'X-Document-Id'     => $docId,
-            'X-Document-Root'   => $docroot,
-            'X-Document-Format' => $format,
-        ];
-
-        $mime   = $filesystem->mimeType($filename);
-
-        if ($this->fileIsMarkdown($mime)) {
-            if (!$format || self::FORMAT_JSON == $format) {
-                // Markdown -> JSON (default)
-                $stream = $filesystem->readStream($filename);
-                $data   = $this->parser->parse($stream, $docroot, $docId);
-                return new JsonResponse($data, 200, $headers);
-            }
-
-            if (self::FORMAT_HTML == $format) {
-                // Markdown -> HTML
-
-                if (!isset($this->markdownConverter)) {
-                    throw new RuntimeException("No markdown converter configured.");
-                }
-
-                $rndr = $this->markdownConverter->convert($filesystem->read($filename));
-                $html = str_replace('{title}', basename($filename), $this->htmlTemplate);
-                $html = str_replace('{content}', $rndr->getContent(), $html);
-                $headers['Content-Type'] = 'text/html';
-
-                return new Response($html, 200, $headers);
-            }
-        }
-
-        // Serve other files as binary
-        $stream = $filesystem->readStream($filename);
-        $resp   = new StreamedResponse(
-            fn() => fpassthru($stream),
-            200,
-            $headers,
-        );
-        $resp->headers->set('Content-Type', $mime);
-
-        return $resp;
-
-    }
-
-    /**
      * @throws FilesystemException
      */
     protected function process(FilesystemOperator $filesystem, Request $request): Response
@@ -248,13 +185,23 @@ class Unscrew
 
         try {
             $filename = $this->getFilenameByPath($filesystem, $path, $ext);
+            $mime     = $filesystem->mimeType($filename);
 
-            return $this->prepare(
+            if ($this->fileIsMarkdown($mime) and $this->canParseTo($format)) {
+                // Parse Markdown to format
+                $document = new Document($filename, dirname($filename), $this->idGenerator?->generate($request, $filename));
+                return $this->parseDocument(
+                    $document,
+                    $filesystem,
+                    $format,
+                );
+            }
+
+            // Serve static resource
+            return $this->serveStatic(
                 $filesystem,
                 $filename,
-                $format,
-                $this->idGenerator?->generate($request, $filename),
-                $this->getDocumentRoot($request, dirname($filename), $filename),
+                $mime,
             );
         }
         catch (InvalidArgumentException $exception) {
@@ -264,6 +211,7 @@ class Unscrew
             $status = Response::HTTP_INTERNAL_SERVER_ERROR;
         }
 
+        // Error
         return $this->respondWithError([
             'document'=> $filename ?? NULL,
             'path'    => $request->getPathInfo(),

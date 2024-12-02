@@ -13,6 +13,7 @@
   - [ ] Add `x-document-path` to headers to identify the served md file
   - [ ] Make `parserToJson` optional
   - [ ] `parserToHtml` should also be one ParserInterface
+  - [ ] throw error on unsupported format instead of serving md (ex. index.wav will serve md file)
 
 ### Ideas
 *Should we support parserTo<format> configuration to enable more formats?*
