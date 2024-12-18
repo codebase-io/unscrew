@@ -2,22 +2,17 @@
 
 namespace Unscrew;
 
-use InvalidArgumentException;
-use League\CommonMark\ConverterInterface;
-use League\CommonMark\Exception\CommonMarkException;
-use League\Config\Exception\ConfigurationExceptionInterface;
-use League\Flysystem\Filesystem;
-use League\Flysystem\FilesystemAdapter;
-use League\Flysystem\FilesystemException;
-use League\Flysystem\FilesystemOperator;
-use RuntimeException;
-use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\StreamedResponse;
-use Symfony\Component\Mime\MimeTypes;
+
 use Throwable;
+use InvalidArgumentException;
 use Unscrew\Parser\ParserInterface;
+use Symfony\Component\Mime\MimeTypes;
+use League\Flysystem\FilesystemOperator;
+use League\CommonMark\ConverterInterface;
+use League\Flysystem\FilesystemException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\JsonResponse;
 
 class Unscrew
 {
@@ -45,6 +40,8 @@ class Unscrew
 
     const FORMAT_JSON = 'json';
     const FORMAT_HTML = 'html';
+
+    private array $markdownExtensions = ['md', 'markdown', 'mkd', 'mdown', 'mdwn', 'mdtxt', 'mdtext'];
 
     private MimeTypes $mimeTypes;
 
@@ -93,21 +90,23 @@ class Unscrew
         $this->htmlTemplate= $template;
     }
 
-    private function fileIsMarkdown(string $mime, bool $break=FALSE): bool
+    private function fileIsMarkdown(string $extension): bool
     {
-        $mime= strtolower($mime);
+        return in_array(strtolower($extension), $this->markdownExtensions);
+    }
 
-        if ( str_contains( $mime, 'markdown' ) ) {
-            return TRUE;
+    private function getRouteFilenameVariants(string $pathinfo, ?string $ext): iterable
+    {
+        $pathinfo = $pathinfo === DIRECTORY_SEPARATOR ? "" : $pathinfo;
+        $bpath    = mb_substr($pathinfo, 0, mb_strrpos($pathinfo, '.'));
+
+        yield $pathinfo;
+
+        foreach ($this->markdownExtensions as $mdext) {
+            $bpath && yield "{$bpath}.{$mdext}";
+            yield "{$pathinfo}.{$mdext}";
+            !$bpath && yield $pathinfo . DIRECTORY_SEPARATOR . "index.{$mdext}";
         }
-
-        if ($break) {
-            return FALSE;
-        }
-
-        $extensions= join('/', $this->mimeTypes->getExtensions($mime));
-
-        return $this->fileIsMarkdown($extensions, TRUE);
     }
 
     /**
@@ -117,25 +116,10 @@ class Unscrew
     private function getFilenameByPath(
         FilesystemOperator $filesystem,
         string $pathinfo,
-        ?string $ext
+        ?string $ext='md'
     ): string
     {
-        $ext  = $ext ?? 'md'; // TODO Markdown files may come with different extensions
-
-        $pathinfo = $pathinfo === DIRECTORY_SEPARATOR ? "" : $pathinfo;
-        $bpath    = mb_substr($pathinfo, 0, mb_strrpos($pathinfo, '.'));
-
-        $variants = [
-            $pathinfo,
-            "$bpath.md",
-            "{$pathinfo}.{$ext}",
-            $pathinfo . DIRECTORY_SEPARATOR . "index.{$ext}",
-        ];
-
-        $variants = array_filter($variants);
-        $variants = array_filter($variants, fn($var) => ".{$ext}" !== trim($var, '/') );
-
-        foreach ($variants as $path) {
+        foreach ($this->getRouteFilenameVariants($pathinfo, $ext) as $path) {
             if ($filesystem->fileExists($path)) {
                 return $path;
             }
@@ -176,18 +160,18 @@ class Unscrew
         $rqpath = $request->getPathInfo();
         $path   = (DIRECTORY_SEPARATOR . trim($rqpath, '/'));
 
-        $ext    = str_contains($rqpath, '.') ? mb_substr($rqpath, mb_strripos($rqpath, '.')+1) : NULL;
-        $format = $ext ?? $this->defaultFormat;
+        $fmt    = str_contains($rqpath, '.') ? mb_substr($rqpath, mb_strripos($rqpath, '.')+1) : NULL;
+        $format = $fmt ?? $this->defaultFormat;
 
         if (!$filesystem->directoryExists('/')) {
             throw new InvalidArgumentException("Path to serve should be a directory and should be readable.");
         }
 
         try {
-            $filename = $this->getFilenameByPath($filesystem, $path, $ext);
-            $mime     = $filesystem->mimeType($filename);
+            $filename = $this->getFilenameByPath($filesystem, $path, $fmt);
+            $ext      = mb_substr($filename, mb_strripos($filename, '.')+1);
 
-            if ($this->fileIsMarkdown($mime) and $this->canParseTo($format)) {
+            if ($this->fileIsMarkdown($ext) and $this->canParseTo($format)) {
                 // Parse Markdown to format
                 $document = new Document($filename, dirname($filename), $this->idGenerator?->generate($request, $filename));
                 return $this->parseDocument(
@@ -201,7 +185,7 @@ class Unscrew
             return $this->serveStatic(
                 $filesystem,
                 $filename,
-                $mime,
+                $filesystem->mimeType($filename),
             );
         }
         catch (InvalidArgumentException $exception) {

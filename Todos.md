@@ -1,19 +1,18 @@
 # Roadmap
 
-  - [ ] Enable support for more markdown file extensions :
-     .md
-     .mkd
-     .mdwn
-     .mdown
-     .mdtxt
-     .mdtext
-     .markdown
-     .text
   - [ ] Allow custom default HTML template
+  - [ ] `parserToHtml` should also be one ParserInterface
   - [ ] Add `x-document-path` to headers to identify the served md file
   - [ ] Make `parserToJson` optional
-  - [ ] `parserToHtml` should also be one ParserInterface
   - [ ] throw error on unsupported format instead of serving md (ex. index.wav will serve md file)
+  - [ ] Write tests for consistent routing
+  - [x] Enable support for more markdown file extensions :
+      .mdwn
+      .mdown
+      .mdtxt
+      .mdtext
+      .markdown
+      ~~.text~~
 
 ### Ideas
 *Should we support parserTo<format> configuration to enable more formats?*

@@ -29,5 +29,4 @@ test('serve html from markdown', function () {
         ->toContain( '<title>test.md</title>' )
         ->toContain( '<body>' )
         ->toContain( '<html>' );
-
 });
